@@ -1,9 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
-
-// Функция для вычисления суммы цифр числа
+// Функция для вычисления суммы
 int sum_digits(int x) {
-    if (x < 0) x = -x; // работаем с положительным значением
+    if (x < 0) x = -x; 
     int sum = 0;
     while (x > 0) {
         sum += x % 10;
@@ -19,7 +18,7 @@ int main() {
 
     // Динамическое хранение матрицы
     int **matrix = (int **)malloc(m * sizeof(int *));
-    int *cols = (int *)malloc(m * sizeof(int)); // количество элементов в каждой строке
+    int *cols = (int *)malloc(m * sizeof(int)); 
 
     // Ввод матрицы
     for (int i = 0; i < m; i++) {
