@@ -32,6 +32,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
+#include <time.h>
 
 typedef struct Node {
     char *key;
@@ -39,106 +41,185 @@ typedef struct Node {
     struct Node *left, *right;
 } Node;
 
-// Создание нового узла
+// Создание нового узла с проверкой ошибок
 Node* createNode(const char *key, const char *info) {
     Node *newNode = (Node*)malloc(sizeof(Node));
+    if (!newNode) return NULL;
+
     newNode->key = strdup(key);
     newNode->info = strdup(info);
+    
+    if (!newNode->key || !newNode->info) {
+        if (newNode->key) free(newNode->key);
+        if (newNode->info) free(newNode->info);
+        free(newNode);
+        return NULL;
+    }
+
     newNode->left = newNode->right = NULL;
     return newNode;
 }
 
-// Вставка в дерево
-Node* insert(Node *root, const char *key, const char *info) {
-    if (!root) return createNode(key, info);
-    int cmp = strcmp(key, root->key);
-    if (cmp == 0) {
-        printf("Ошибка: ключ '%s' уже существует!\n", key);
-    } else if (cmp < 0) {
-        root->left = insert(root->left, key, info);
-    } else {
-        root->right = insert(root->right, key, info);
-    }
-    return root;
-}
-
-// Поиск по ключу
+// Итеративный поиск по ключу
 Node* search(Node *root, const char *key) {
-    if (!root) return NULL;
-    int cmp = strcmp(key, root->key);
-    if (cmp == 0) return root;
-    else if (cmp < 0) return search(root->left, key);
-    else return search(root->right, key);
-}
-
-// Минимальный узел (для удаления)
-Node* findMin(Node *root) {
-    while (root && root->left) root = root->left;
-    return root;
-}
-
-// Удаление по ключу
-Node* delete(Node *root, const char *key) {
-    if (!root) return NULL;
-    int cmp = strcmp(key, root->key);
-    if (cmp < 0) root->left = delete(root->left, key);
-    else if (cmp > 0) root->right = delete(root->right, key);
-    else {
-        if (!root->left) {
-            Node *tmp = root->right;
-            free(root->key); free(root->info); free(root);
-            return tmp;
-        } else if (!root->right) {
-            Node *tmp = root->left;
-            free(root->key); free(root->info); free(root);
-            return tmp;
-        }
-        Node *tmp = findMin(root->right);
-        free(root->key); free(root->info);
-        root->key = strdup(tmp->key);
-        root->info = strdup(tmp->info);
-        root->right = delete(root->right, tmp->key);
+    Node *current = root;
+    while (current != NULL) {
+        int cmp = strcmp(key, current->key);
+        if (cmp == 0)
+            return current;
+        current = (cmp < 0) ? current->left : current->right;
     }
+    return NULL;
+}
+
+// Итеративная вставка элемента
+Node* insert(Node* root, const char* key, const char* info) {
+    if (!root) return createNode(key, info);
+
+    Node* current = root;
+    Node* parent = NULL;
+
+    // Поиск места для вставки
+    while (current != NULL) {
+        parent = current;
+        int cmp = strcmp(key, current->key);
+        
+        if (cmp == 0) {
+            printf("Ошибка: ключ '%s' уже существует!\n", key);
+            return root;
+        }
+        
+        current = (cmp < 0) ? current->left : current->right;
+    }
+
+    // Создание нового узла
+    Node* newNode = createNode(key, info);
+    if (!newNode) {
+        printf("Ошибка выделения памяти!\n");
+        return root;
+    }
+
+    // Определение позиции для вставки
+    int cmp = strcmp(key, parent->key);
+    if (cmp < 0)
+        parent->left = newNode;
+    else
+        parent->right = newNode;
+
     return root;
 }
 
-// Вывод элементов с ключами > заданного
+// Поиск минимального узла в поддереве
+Node* findMin(Node *root) {
+    if (!root) return NULL;
+    while (root->left) root = root->left;
+    return root;
+}
+
+// Удаление узла по ключу
+Node* delete(Node *root, const char *key) {
+    Node* current = root;
+    Node* parent = NULL;
+
+    // Поиск удаляемого узла
+    while (current != NULL) {
+        int cmp = strcmp(key, current->key);
+        if (cmp == 0) break;
+        
+        parent = current;
+        current = (cmp < 0) ? current->left : current->right;
+    }
+
+    if (!current) {
+        printf("Ключ '%s' не найден!\n", key);
+        return root;
+    }
+
+    // Случай 1: у узла нет потомков или только один потомок
+    if (!current->left || !current->right) {
+        Node* temp = current->left ? current->left : current->right;
+        
+        // Если удаляется корень
+        if (!parent) {
+            free(current->key);
+            free(current->info);
+            free(current);
+            return temp;
+        }
+
+        // Определение, каким потомком является current у parent
+        if (parent->left == current)
+            parent->left = temp;
+        else
+            parent->right = temp;
+
+        free(current->key);
+        free(current->info);
+        free(current);
+    } 
+    // Случай 2: у узла два потомка
+    else {
+        Node* successor = findMin(current->right);
+        
+        // Сохранение данных преемника
+        char* successor_key = strdup(successor->key);
+        char* successor_info = strdup(successor->info);
+        
+        // Рекурсивное удаление преемника
+        root = delete(root, successor->key);
+        
+        // Замена данных текущего узла
+        free(current->key);
+        free(current->info);
+        current->key = successor_key;
+        current->info = successor_info;
+    }
+    
+    return root;
+}
+
+// Рекурсивный вывод элементов с ключами > заданного
 void printGreater(Node *root, const char *minKey) {
     if (!root) return;
+    
+    // Если minKey не задан, выводим все элементы
     int cmp = minKey ? strcmp(root->key, minKey) : 1;
-    if (!minKey || cmp > 0) {
+    
+    if (cmp > 0) {
         printGreater(root->left, minKey);
-        printf("%s : %s\n", root->key, root->info);
-        printGreater(root->right, minKey);
-    } else {
-        printGreater(root->right, minKey);
+        printf("Ключ: %s, Информация: %s\n", root->key, root->info);
     }
+    printGreater(root->right, minKey);
 }
 
-// Поиск по первым N символам
+// Рекурсивный поиск по первым N символам
 void searchByPrefix(Node *root, const char *prefix, int N) {
     if (!root) return;
+    
     if (strncmp(root->key, prefix, N) == 0) {
-        printf("%s : %s\n", root->key, root->info);
+        printf("Найдено: %s : %s\n", root->key, root->info);
     }
+    
     searchByPrefix(root->left, prefix, N);
     searchByPrefix(root->right, prefix, N);
 }
 
-// Форматированный вывод дерева
-void printTree(Node *root, int space) {
+// Рекурсивный вывод дерева
+void printTree(Node *root, int level) {
     if (!root) return;
-    space += 5;
-    printTree(root->right, space);
-    printf("\n");
-    for (int i = 5; i < space; i++) printf(" ");
+    
+    printTree(root->right, level + 1);
+    
+    for (int i = 0; i < level; i++) printf("    ");
     printf("%s\n", root->key);
-    printTree(root->left, space);
+    
+    printTree(root->left, level + 1);
 }
 
-// Освобождение памяти
+// Освобождение памяти дерева
 void freeTree(Node *root) {
     if (!root) return;
+    
     freeTree(root->left);
     freeTree(root->right);
     free(root->key);
@@ -146,57 +227,152 @@ void freeTree(Node *root) {
     free(root);
 }
 
+// Загрузка данных из файла
+Node* loadFromFile(Node *root, const char *filename) {
+    FILE *file = fopen(filename, "r");
+    if (!file) {
+        printf("Ошибка открытия файла %s!\n", filename);
+        return root;
+    }
+    
+    char key[256], info[256];
+    int count = 0;
+    
+    while (fgets(key, sizeof(key), file)) {
+        key[strcspn(key, "\n")] = 0;
+        
+        if (!fgets(info, sizeof(info), file)) {
+            printf("Ошибка: файл имеет нечетное количество строк!\n");
+            break;
+        }
+        info[strcspn(info, "\n")] = 0;
+        
+        root = insert(root, key, info);
+        count++;
+    }
+    
+    fclose(file);
+    printf("Загружено %d записей из файла %s\n", count, filename);
+    return root;
+}
+
+// Функция для таймирования операции
+void timeOperation(Node *root, int operationType, const char *key, const char *info) {
+    clock_t start = clock();
+    
+    switch (operationType) {
+        case 1:
+            insert(root, key, info);
+            break;
+        case 2:
+            search(root, key);
+            break;
+        case 3:
+            delete(root, key);
+            break;
+    }
+    
+    clock_t end = clock();
+    double time_spent = (double)(end - start) / CLOCKS_PER_SEC;
+    printf("Операция выполнена за %f секунд\n", time_spent);
+}
+
+void safeInput(char *buffer, int size, const char *prompt) {
+    printf("%s", prompt);
+    if (!fgets(buffer, size, stdin)) {
+        buffer[0] = '\0';
+        return;
+    }
+    buffer[strcspn(buffer, "\n")] = 0;
+}
+
 int main() {
     Node *root = NULL;
     int choice;
-    char key[256], info[256], prefix[256];
+    char key[256], info[256], prefix[256], filename[256];
     int N;
-
+    
     do {
         printf("\nМеню:\n");
         printf("1. Вставить элемент\n");
         printf("2. Удалить элемент\n");
         printf("3. Поиск по ключу\n");
-        printf("4. Вывод элементов > заданного ключа\n");
-        printf("5. Поиск по первым N символам\n");
+        printf("4. Вывод элементов с ключами больше заданного\n");
+        printf("5. Поиск по первым N символам ключа\n");
         printf("6. Печать дерева\n");
+        printf("7. Загрузка данных из файла\n");
+        printf("8. Таймирование операций\n");
         printf("0. Выход\n");
         printf("Выбор: ");
-        scanf("%d", &choice); getchar();
-
+        
+        if (scanf("%d", &choice) != 1) {
+            printf("Ошибка ввода! Пожалуйста, введите число.\n");
+            while (getchar() != '\n'); // Очистка буфера ввода
+            continue;
+        }
+        getchar(); // Удаление символа новой строки
+        
         switch (choice) {
             case 1:
-                printf("Введите ключ: "); fgets(key, sizeof(key), stdin); key[strcspn(key, "\n")] = 0;
-                printf("Введите информацию: "); fgets(info, sizeof(info), stdin); info[strcspn(info, "\n")] = 0;
+                safeInput(key, sizeof(key), "Введите ключ: ");
+                safeInput(info, sizeof(info), "Введите информацию: ");
                 root = insert(root, key, info);
                 break;
             case 2:
-printf("Введите ключ для удаления: "); fgets(key, sizeof(key), stdin); key[strcspn(key, "\n")] = 0;
+                safeInput(key, sizeof(key), "Введите ключ для удаления: ");
                 root = delete(root, key);
                 break;
             case 3:
-                printf("Введите ключ для поиска: "); fgets(key, sizeof(key), stdin); key[strcspn(key, "\n")] = 0;
-                Node *found;
-                found = search(root, key);
-                if (found) printf("Найдено: %s\n", found->info);
-                else printf("Ключ не найден.\n");
+                safeInput(key, sizeof(key), "Введите ключ для поиска: ");
+                Node *found = search(root, key);
+                if (found) 
+                    printf("Найдено: ключ=%s, информация=%s\n", found->key, found->info);
+                else 
+                    printf("Ключ не найден.\n");
                 break;
             case 4:
-                printf("Введите минимальный ключ (или пусто для всех): ");
-                fgets(key, sizeof(key), stdin); key[strcspn(key, "\n")] = 0;
-                printGreater(root, strlen(key) ? key : NULL);
+                safeInput(key, sizeof(key), "Введите минимальный ключ (или Enter для вывода всех): ");
+                printf("Элементы с ключами больше '%s':\n", key[0] ? key : "все");
+                printGreater(root, key[0] ? key : NULL);
                 break;
             case 5:
-                printf("Введите префикс: "); fgets(prefix, sizeof(prefix), stdin); prefix[strcspn(prefix, "\n")] = 0;
-                printf("Введите N: "); scanf("%d", &N); getchar();
+                safeInput(prefix, sizeof(prefix), "Введите префикс: ");
+                printf("Введите N: ");
+                scanf("%d", &N);
+                getchar();
                 searchByPrefix(root, prefix, N);
                 break;
             case 6:
+                printf("Дерево:\n");
                 printTree(root, 0);
                 break;
+            case 7:
+                safeInput(filename, sizeof(filename), "Введите имя файла: ");
+                root = loadFromFile(root, filename);
+                break;
+            case 8:
+                printf("Таймирование операций:\n");
+                printf("1. Вставка\n2. Поиск\n3. Удаление\n");
+                printf("Выберите операцию: ");
+                int opType;
+                scanf("%d", &opType);
+                getchar();
+                
+                safeInput(key, sizeof(key), "Введите ключ: ");
+                if (opType == 1) {
+                    safeInput(info, sizeof(info), "Введите информацию: ");
+                }
+                
+                timeOperation(root, opType, key, info);
+                break;
+            case 0:
+                printf("Выход из программы.\n");
+                break;
+            default:
+                printf("Неверный выбор! Попробуйте снова.\n");
         }
     } while (choice != 0);
-
+    
     freeTree(root);
     return 0;
 }
