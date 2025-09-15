@@ -9,140 +9,263 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 
-#define MAX_LINE_LEN 1024
-#define WIDTH 80
-
-typedef struct Node {
+struct Node {
     char ch;
     struct Node *next;
-} Node;
+};
 
-// Создание нового узла
-Node* create_node(char ch) {
-    Node* node = (Node*)malloc(sizeof(Node));
-    node->ch = ch;
-    node->next = NULL;
-    return node;
+// Функция для добавления символа в конец списка
+void append_node(struct Node **head, struct Node **tail, char c) {
+    struct Node *new_node = (struct Node*)malloc(sizeof(struct Node));
+    new_node->ch = c;
+    new_node->next = NULL;
+    if (*head == NULL) {
+        *head = new_node;
+        *tail = new_node;
+    } else {
+        (*tail)->next = new_node;
+        *tail = new_node;
+    }
 }
 
-// Создание списка из строки
-Node* build_list_from_string(const char* str) {
-    Node* head = NULL;
-    Node* tail = NULL;
-    while (*str) {
-        Node* node = create_node(*str++);
-        if (!head) head = node;
-        else tail->next = node;
-        tail = node;
+// Функция для создания списка из строки
+struct Node* create_list(const char *str) {
+    struct Node *head = NULL;
+    struct Node *tail = NULL;
+    for (const char *p = str; *p != '\0'; p++) {
+        append_node(&head, &tail, *p);
     }
     return head;
 }
 
-// Вывод 
-void print_list(Node* head) {
-    while (head) {
-        putchar(head->ch);
-        head = head->next;
+// Функция для удаления лишних пробелов в списке
+void remove_extra_spaces(struct Node **head) {
+    while (*head != NULL && (*head)->ch == ' ') {
+        struct Node *temp = *head;
+        *head = (*head)->next;
+        free(temp);
     }
-    putchar('\n');
+    if (*head == NULL) return;
+
+    struct Node *current = *head;
+    // Удаляем повторяющиеся пробелы между словами
+    while (current->next != NULL) {
+        if (current->ch == ' ' && current->next->ch == ' ') {
+            struct Node *temp = current->next;
+            current->next = temp->next;
+            free(temp);
+        } else {
+            current = current->next;
+        }
+    }
+    // Удаляем пробел в конце списка, если он есть
+    if (current->ch == ' ') {
+        if (*head == current) {
+            free(current);
+            *head = NULL;
+        } else {
+            struct Node *prev = *head;
+            while (prev->next != current) {
+                prev = prev->next;
+            }
+            prev->next = NULL;
+            free(current);
+        }
+    }
 }
 
-// Освобождение 
-void free_list(Node* head) {
-    while (head) {
-        Node* temp = head;
-        head = head->next;
+// Функция для подсчета слов и общего количества символов (без пробелов)
+int count_words_and_length(struct Node *head, int *total_chars) {
+    int words = 0;
+    *total_chars = 0;
+    int in_word = 0;
+    struct Node *current = head;
+    while (current != NULL) {
+        if (current->ch != ' ') {
+            (*total_chars)++;
+            if (!in_word) {
+                words++;
+                in_word = 1;
+            }
+        } else {
+            in_word = 0;
+        }
+        current = current->next;
+    }
+    return words;
+}
+
+// Функция для подсчета общей длины списка (включая пробелы)
+int list_length(struct Node *head) {
+    int len = 0;
+    struct Node *current = head;
+    while (current != NULL) {
+        len++;
+        current = current->next;
+    }
+    return len;
+}
+
+// Функция для обрезки списка до указанной длины
+void truncate_list(struct Node **head, int max_len) {
+    if (*head == NULL) return;
+    
+    struct Node *current = *head;
+    struct Node *prev = NULL;
+    int count = 0;
+    
+    while (current != NULL && count < max_len) {
+        prev = current;
+        current = current->next;
+        count++;
+    }
+    
+    if (prev != NULL) {
+        prev->next = NULL;
+    }
+    
+    while (current != NULL) {
+        struct Node *temp = current;
+        current = current->next;
         free(temp);
     }
 }
 
-// Пропуск пробелов и табуляции
-Node* skip_delimiters(Node* node) {
-    while (node && (node->ch == ' ' || node->ch == '\t')) {
-        node = node->next;
-    }
-    return node;
-}
-
-// Извлечение слова из списка
-char* extract_word(Node** node) {
-    char buffer[MAX_LINE_LEN];
-    int i = 0;
-    *node = skip_delimiters(*node);
-    while (*node && (*node)->ch != ' ' && (*node)->ch != '\t') {
-        buffer[i++] = (*node)->ch;
-        *node = (*node)->next;
-    }
-    buffer[i] = '\0';
-    return strdup(buffer);
-}
-
-// Подсчет слов
-int count_words(Node* head) {
-    int count = 0;
-    while ((head = skip_delimiters(head))) {
-        extract_word(&head);
-        count++;
-    }
-    return count;
-}
-
-// Формирование строки по ширине
-Node* justify_line(Node* head) {
-    char* words[MAX_LINE_LEN];
-    int word_count = 0;
-    Node* temp = head;
-
-    while ((temp = skip_delimiters(temp))) {
-        words[word_count++] = extract_word(&temp);
-    }
-
-    int total_len = 0;
-    for (int i = 0; i < word_count; i++) {
-        total_len += strlen(words[i]);
-    }
-
-    int spaces = WIDTH - total_len;
-    int gaps = word_count > 1 ? word_count - 1 : 1;
-    int space_per_gap = spaces / gaps;
-    int extra_spaces = spaces % gaps;
-
-    Node* result = NULL;
-    Node* tail = NULL;
-
-    for (int i = 0; i < word_count; i++) {
-        for (int j = 0; j < strlen(words[i]); j++) {
-            Node* node = create_node(words[i][j]);
-            if (!result) result = node;
-            else tail->next = node;
-            tail = node;
-        }
-
-        if (i < word_count - 1) {
-            int space_count = space_per_gap + (extra_spaces-- > 0 ? 1 : 0);
-            for (int s = 0; s < space_count; s++) {
-                Node* space_node = create_node(' ');
-                tail->next = space_node;
-                tail = space_node;
+// Функция для вставки пробелов для выравнивания по ширине
+void insert_spaces(struct Node *head, int word_count, int total_chars) {
+    if (word_count < 2) {
+        if (word_count == 1) {
+            struct Node *current = head;
+            while (current->next != NULL) {
+                current = current->next;
+            }
+            int spaces_to_add = 80 - total_chars;
+            for (int i = 0; i < spaces_to_add; i++) {
+                struct Node *new_space = (struct Node*)malloc(sizeof(struct Node));
+                new_space->ch = ' ';
+                new_space->next = NULL;
+                current->next = new_space;
+                current = new_space;
             }
         }
-        free(words[i]);
+        return;
     }
 
-    return result;
+    int total_spaces_needed = 80 - total_chars;
+    int gaps = word_count - 1;
+    int base_spaces = total_spaces_needed / gaps;
+    int extra = total_spaces_needed % gaps;
+
+    // Собираем массив указателей на пробелы между словами
+    struct Node **space_nodes = (struct Node**)malloc(gaps * sizeof(struct Node*));
+    int space_index = 0;
+    struct Node *current = head;
+    while (current != NULL) {
+        if (current->ch == ' ') {
+            space_nodes[space_index++] = current;
+        }
+        current = current->next;
+    }
+
+    for (int i = 0; i < gaps; i++) {
+        struct Node *space = space_nodes[i];
+        int spaces_to_insert = base_spaces;
+        if (i < extra) {
+            spaces_to_insert++;
+        }
+        for (int j = 0; j < spaces_to_insert; j++) {
+            struct Node *new_space = (struct Node*)malloc(sizeof(struct Node));
+            new_space->ch = ' ';
+            new_space->next = space->next;
+            space->next = new_space;
+            space = new_space;
+        }
+    }
+    free(space_nodes);
 }
 
-// Основная функция
+// Вывод списка на экран
+void print_list(struct Node *head) {
+    struct Node *current = head;
+    while (current != NULL) {
+        printf("%c", current->ch);
+        current = current->next;
+    }
+    printf("\n");
+}
+
+// Освобождения памяти, занятой списком
+void free_list(struct Node *head) {
+    struct Node *current = head;
+    while (current != NULL) {
+        struct Node *temp = current;
+        current = current->next;
+        free(temp);
+    }
+}
+
+// Чтение строки произвольной длины из входного потока
+struct Node* read_line() {
+    struct Node *head = NULL;
+    struct Node *tail = NULL;
+    char buffer[1024];
+    int read_more = 1;
+    
+    while (read_more) {
+        // Читаем часть строки до 1023 символов или до символа новой строки
+        if (scanf("%1023[^\n]", buffer) == 1) {
+            // Добавляем прочитанные символы в список
+            for (char *p = buffer; *p != '\0'; p++) {
+                // Заменяем табуляции на пробелы
+                char c = (*p == '\t') ? ' ' : *p;
+                append_node(&head, &tail, c);
+            }
+        } else {
+            read_more = 0;
+        }
+        
+        // Проверяем следующий символ
+        int next_char = getchar();
+        if (next_char == '\n' || next_char == EOF) {
+            read_more = 0;
+        } else {
+            // Возвращаем символ обратно в поток, если это не конец строки
+            ungetc(next_char, stdin);
+        }
+    }
+    
+    return head;
+}
+
 int main() {
-    char buffer[MAX_LINE_LEN];
-    while (scanf("%1023[^\n]%*c", buffer) != EOF) {
-        Node* line = build_list_from_string(buffer);
-        Node* justified = justify_line(line);
-        print_list(justified);
-        free_list(line);
-        free_list(justified);
+    while (1) {
+        // Чтение строки произвольной длины
+        struct Node *list = read_line();
+        if (list == NULL) {
+            break;
+        }
+        
+        remove_extra_spaces(&list);
+        
+        int total_length = list_length(list);
+        
+        if (total_length == 0) {
+            // Если слов нет, создаем строку из 80 пробелов
+            free_list(list);
+            list = create_list("                                                                                ");
+        } else if (total_length >= 80) {
+            // Если строка уже содержит 80 или более символов, обрезаем её
+            truncate_list(&list, 80);
+        } else {
+            // Если строка короче 80 символов, выравниваем по ширине
+            int total_chars;
+            int word_count = count_words_and_length(list, &total_chars);
+            insert_spaces(list, word_count, total_chars);
+        }
+        
+        print_list(list);
+        free_list(list);
     }
     return 0;
 }
