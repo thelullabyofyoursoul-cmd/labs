@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
-// Функция для вычисления суммы
-int sum_digits(int x) {
-    if (x < 0) x = -x; 
+
+int sumDigits(int x) {
     int sum = 0;
+    x = abs(x);
     while (x > 0) {
         sum += x % 10;
         x /= 10;
@@ -12,68 +12,78 @@ int sum_digits(int x) {
 }
 
 int main() {
-    int m;
-    printf("Введите количество строк m: ");
-    scanf("%d", &m);
+    int m, n;
+    
+    printf("Введите количество строк m и столбцов n: ");
+    if (scanf("%d %d", &m, &n) != 2 || m <= 0 || n <= 0) {
+        printf("Ошибка ввода размеров матрицы.\n");
+        return 1;
+    }
 
-    // Динамическое хранение матрицы
-    int **matrix = (int **)malloc(m * sizeof(int *));
-    int *cols = (int *)malloc(m * sizeof(int)); 
-
-    // Ввод матрицы
+    // Динамически выделяем память под исходную матрицу размером m x n
+    int **matrix = malloc(m * sizeof(int *));
     for (int i = 0; i < m; i++) {
-        printf("Введите количество элементов в %d-й строке: ", i + 1);
-        scanf("%d", &cols[i]);
-        matrix[i] = (int *)malloc(cols[i] * sizeof(int));
-        printf("Введите элементы %d-й строки: ", i + 1);
-        for (int j = 0; j < cols[i]; j++) {
+        matrix[i] = malloc(n * sizeof(int));
+    }
+    printf("Введите элементы матрицы (%d строк по %d чисел):\n", m, n);
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
             scanf("%d", &matrix[i][j]);
         }
     }
 
-    // Вывод исходной матрицы
-    printf("\nИсходная матрица:\n");
+    // Подготовка структуры для новой матрицы:для каждой строки храним массив из n (максимум) элементов
+    int **newMatrix = malloc(m * sizeof(int *));
+    int *newSizes  = malloc(m * sizeof(int));  // фактические размеры строк в новой матрице
     for (int i = 0; i < m; i++) {
-        for (int j = 0; j < cols[i]; j++) {
-            printf("%d ", matrix[i][j]);
+        newMatrix[i] = malloc(n * sizeof(int));
+        newSizes[i] = 0;
+    }
+
+    // Формируем новую матрицу по заданному правилу
+    for (int i = 0; i < m; i++) {
+        int targetSum = sumDigits(matrix[i][n - 1]);
+
+        // Проверяем все числа в этой строке
+        for (int j = 0; j < n; j++) {
+            if (sumDigits(matrix[i][j]) == targetSum) {
+                newMatrix[i][ newSizes[i]++ ] = matrix[i][j];
+            }
+        }
+    }
+
+    // Вывод исходной матрицы
+    printf("\nИсходная матрица (%d x %d):\n", m, n);
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
+            printf("%6d", matrix[i][j]);
         }
         printf("\n");
     }
 
-    // Проверка, что есть хотя бы 2 строки
-    if (m < 2) {
-        printf("\nОшибка: во входной матрице меньше двух строк.\n");
-        return 0;
-    }
-
-    // Сумма цифр последнего числа второй строки
-    int last_num = matrix[1][cols[1] - 1];
-    int target_sum = sum_digits(last_num);
-
-    // Формируем новую матрицу (пусть g = 1, т.е. первая строка новой матрицы)
-    int *new_row = (int *)malloc(cols[1] * sizeof(int));
-    int new_count = 0;
-
-    for (int j = 0; j < cols[1]; j++) {
-        if (sum_digits(matrix[1][j]) == target_sum) {
-            new_row[new_count++] = matrix[1][j];
+    // Вывод новой матрицы
+    printf("\nНовая матрица (элементы с нужной суммой цифр):\n");
+    for (int i = 0; i < m; i++) {
+        printf("Строка %d:", i + 1);
+        if (newSizes[i] == 0) {
+            printf(" (нет элементов)\n");
+        } else {
+            //  отобранные числа
+            for (int k = 0; k < newSizes[i]; k++) {
+                printf(" %d", newMatrix[i][k]);
+            }
+            printf("\n");
         }
     }
 
-    // Вывод новой матрицы
-    printf("\nНовая матрица (в 1-й строке числа из 2-й строки исходной, сумма цифр которых равна %d):\n", target_sum);
-    for (int j = 0; j < new_count; j++) {
-        printf("%d ", new_row[j]);
-    }
-    printf("\n");
-
-    // Освобождение памяти
+    // Освобождение динамической памяти
     for (int i = 0; i < m; i++) {
         free(matrix[i]);
+        free(newMatrix[i]);
     }
     free(matrix);
-    free(cols);
-    free(new_row);
+    free(newMatrix);
+    free(newSizes);
 
     return 0;
 }
