@@ -36,119 +36,180 @@
 
 #define SIZE 100
 
-struct Item {
-    int key;        // ключ элемента
-    char *info;     // указатель на информацию
-};
+// Структура для элемента таблицы
+typedef struct {
+    int key;
+    char* info;
+} Item;
 
-struct Item table[SIZE];
-int count = 0; // текущее количество элементов
+// Структура для самой таблицы
+typedef struct {
+    Item items[SIZE];
+    int count;
+} Table;
 
-// Проверка уникальности ключа
-int findByKey(int key) {
-    for (int i = 0; i < count; i++) {
-        if (table[i].key == key) return i;
+Table table = {0};
+
+// Прототипы функций
+int read_int();
+void add_item();
+void delete_item();
+void search_items();
+void display_table();
+void free_table();
+
+int read_int() {
+    int value;
+    while (scanf("%d", &value) != 1) {
+        printf("Ошибка ввода. Введите целое число: ");
+        while (getchar() != '\n');
     }
-    return -1;
+    return value;
 }
 
-// Добавление элемента
-void addItem() {
-    if (count >= SIZE) {
-        printf("Таблица переполнена!\n");
+void add_item() {
+    if (table.count >= SIZE) {
+        printf("Таблица полна. Невозможно добавить элемент.\n");
         return;
     }
-    int key;
-    char buffer[256];
+
     printf("Введите ключ: ");
-    scanf("%d", &key);
-    if (findByKey(key) != -1) {
-        printf("Ошибка: элемент с таким ключом уже существует!\n");
-        return;
-    }
-    printf("Введите информацию: ");
-    scanf(" %[^\n]", buffer);
+    int key = read_int();
 
-    table[count].key = key;
-    table[count].info = strdup(buffer);
-    count++;
-    printf("Элемент добавлен.\n");
-}
-
-// Удаление элемента
-void deleteItem() {
-    int key;
-    printf("Введите ключ для удаления: ");
-    scanf("%d", &key);
-    int idx = findByKey(key);
-    if (idx == -1) {
-        printf("Элемент не найден.\n");
-        return;
-    }
-    free(table[idx].info);
-    for (int i = idx; i < count - 1; i++) {
-        table[i] = table[i + 1];
-    }
-    count--;
-    printf("Элемент удален.\n");
-}
-
-// Поиск по диапазону
-void searchRange() {
-    int minKey, maxKey;
-    printf("Введите минимальный ключ: ");
-    scanf("%d", &minKey);
-    printf("Введите максимальный ключ: ");
-    scanf("%d", &maxKey);
-
-    printf("Результаты поиска:\n");
-    for (int i = 0; i < count; i++) {
-        if (table[i].key >= minKey && table[i].key <= maxKey) {
-            printf("Ключ: %d, Инфо: %s\n", table[i].key, table[i].info);
+    // Проверка на уникальность ключа
+    for (int i = 0; i < table.count; i++) {
+        if (table.items[i].key == key) {
+            printf("Ошибка: элемент с ключом %d уже существует.\n", key);
+            return;
         }
     }
+
+    printf("Введите информацию: ");
+    char info[256];
+    scanf(" %255[^\n]", info);
+
+    // Выделяем память для строки и копируем информацию
+    char* info_copy = (char*)malloc(strlen(info) + 1);
+    if (info_copy == NULL) {
+        printf("Ошибка выделения памяти.\n");
+        return;
+    }
+    strcpy(info_copy, info);
+
+    // Добавление элемента в таблицу
+    table.items[table.count].key = key;
+    table.items[table.count].info = info_copy;
+    table.count++;
+
+    printf("Элемент добавлен успешно.\n");
 }
 
-// Вывод таблицы
-void printTable() {
-    if (count == 0) {
+void delete_item() {
+    printf("Введите ключ для удаления: ");
+    int key = read_int();
+
+    for (int i = 0; i < table.count; i++) {
+        if (table.items[i].key == key) {
+            // Освобождаем память, занятую информацией
+            free(table.items[i].info);
+            
+            table.items[i] = table.items[table.count - 1];
+            table.count--;
+            
+            printf("Элемент удален успешно.\n");
+            return;
+        }
+    }
+    printf("Элемент с ключом %d не найден.\n", key);
+}
+
+void search_items() {
+    printf("Введите начальный ключ: ");
+    int start = read_int();
+    printf("Введите конечный ключ: ");
+    int end = read_int();
+
+    Table result = {0};
+
+    for (int i = 0; i < table.count; i++) {
+        if (table.items[i].key >= start && table.items[i].key <= end) {
+            // Создаем копию элемента для результата
+            result.items[result.count].key = table.items[i].key;
+            
+            // Выделяем память и копируем информацию
+            result.items[result.count].info = (char*)malloc(strlen(table.items[i].info) + 1);
+            if (result.items[result.count].info == NULL) {
+                printf("Ошибка выделения памяти.\n");
+                // Освобождаем уже выделенную память в случае ошибки
+                for (int j = 0; j < result.count; j++) {
+                    free(result.items[j].info);
+                }
+                return;
+            }
+            strcpy(result.items[result.count].info, table.items[i].info);
+            
+            result.count++;
+        }
+    }
+
+    if (result.count == 0) {
+        printf("Элементы в диапазоне не найдены.\n");
+        return;
+    }
+
+    printf("Найденные элементы:\n");
+    for (int i = 0; i < result.count; i++) {
+        printf("Ключ: %d, Информация: %s\n", result.items[i].key, result.items[i].info);
+    }
+
+    // Освобождаем память, выделенную для результатов поиска
+    for (int i = 0; i < result.count; i++) {
+        free(result.items[i].info);
+    }
+}
+
+void display_table() {
+    if (table.count == 0) {
         printf("Таблица пуста.\n");
         return;
     }
-    for (int i = 0; i < count; i++) {
-        printf("%d: %s\n", table[i].key, table[i].info);
+
+    printf("Содержимое таблицы:\n");
+    for (int i = 0; i < table.count; i++) {
+        printf("Ключ: %d, Информация: %s\n", table.items[i].key, table.items[i].info);
     }
 }
 
-// Главное меню
-void menu() {
-    int choice;
-    do {
-        printf("\n--- МЕНЮ ---\n");
-        printf("1. Добавить элемент\n");
-        printf("2. Удалить элемент\n");
-        printf("3. Поиск по диапазону\n");
-        printf("4. Показать таблицу\n");
-        printf("0. Выход\n");
-        printf("Ваш выбор: ");
-        scanf("%d", &choice);
-
-        switch (choice) {
-            case 1: addItem(); break;
-            case 2: deleteItem(); break;
-            case 3: searchRange(); break;
-            case 4: printTable(); break;
-            case 0: break;
-            default: printf("Неверный выбор!\n");
-        }
-    } while (choice != 0);
+void free_table() {
+    for (int i = 0; i < table.count; i++) {
+        free(table.items[i].info);
+    }
+    table.count = 0;
 }
 
 int main() {
-    menu();
-    // Очистка памяти
-    for (int i = 0; i < count; i++) {
-        free(table[i].info);
-    }
+    int choice;
+    do {
+        printf("\nМеню:\n");
+        printf("1. Добавить элемент\n");
+        printf("2. Удалить элемент\n");
+        printf("3. Поиск по диапазону\n");
+        printf("4. Вывод таблицы\n");
+        printf("5. Выход\n");
+        printf("Выберите операцию: ");
+        choice = read_int();
+
+        switch (choice) {
+            case 1: add_item(); break;
+            case 2: delete_item(); break;
+            case 3: search_items(); break;
+            case 4: display_table(); break;
+            case 5: break;
+            default: printf("Неверный выбор.\n");
+        }
+    } while (choice != 5);
+
+    free_table();
+    
     return 0;
 }
